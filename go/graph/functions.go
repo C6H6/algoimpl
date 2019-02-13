@@ -323,6 +323,93 @@ func (g *Graph) MaxSpacingClustering(n int) ([][]Node, int, error) {
 	return clusters, distance, nil
 }
 
+// EulerianPath return a slice of edges forming
+// Eulerian path. Eulerian path is a path in
+// a graph which visits every edge once.
+// Function uses Fleury's algorithm.
+// Returns nil if Eulerian path doesn't exist
+func (g *Graph) EulerianPath() []Edge {
+	// Edges will be removing so better work on copy
+	graphCopy := g
+	current := graphCopy.nodes[0]
+
+	// count all edges
+	edgesCount := 0
+	for _, node := range graphCopy.nodes {
+		edgesCount += len(node.edges)
+	}
+	if graphCopy.Kind == Undirected {
+		edgesCount /= 2
+	}
+
+	path := make([]Edge, 0, edgesCount)
+
+	// Find odd degree node
+	for _, node := range graphCopy.nodes {
+		if len(node.edges)%2 != 0 {
+			current = node
+			break
+		}
+	}
+	for {
+		for _, edge := range current.edges {
+
+			// The only available way
+			if len(current.edges) == 1 {
+				path = append(path, Edge{Start: current.container, End:edge.end.container, Weight:edge.weight})
+				newCurrent := edge.end
+				graphCopy.RemoveEdge(current.container, edge.end.container)
+				current = newCurrent
+				break
+			}
+
+			// Check if edge is a bridge:
+			// Count reachable nodes, remove edge and count reachable node again.
+			// If number of reachable nodes doesn't change then it's not a bridge
+			list1 := make([]Node, 0, len(graphCopy.nodes))
+			graphCopy.dfs(current, &list1)
+			count1 := len(list1)
+
+			// dfs function doesn't clear states :(
+			for _, node := range graphCopy.nodes {
+				node.state = unseen
+			}
+
+			graphCopy.RemoveEdge(current.container, edge.end.container)
+
+			list2 := make([]Node, 0, len(graphCopy.nodes))
+			graphCopy.dfs(current, &list2)
+			count2 := len(list2)
+
+			graphCopy.MakeEdge(current.container, edge.end.container)
+
+			// It's a bridge
+			if count1 > count2 {
+				continue
+			}
+
+			// It's not a bridge
+			path = append(path, Edge{Start: current.container, End:edge.end.container, Weight:edge.weight})
+			newCurrent := edge.end
+			graphCopy.RemoveEdge(current.container, edge.end.container)
+			current = newCurrent
+			break
+		}
+
+		// No way to go
+		if len(current.edges) == 0 {
+			break
+		}
+	}
+
+	// Check if each edge has been visited
+	if len(path) != edgesCount {
+		return nil
+	}
+
+	return path
+}
+
 func determineCluster(n *node) int {
 	// all nodes .data member is set to the dequeued const from MST's .pop().
 	// I use the .data member in clustering as the cluster number.
